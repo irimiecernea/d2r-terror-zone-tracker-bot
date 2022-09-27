@@ -44,7 +44,7 @@ client.on('interactionCreate', async interaction => {
     let guildIdDatabase = await getGuildIdFromDatabase();
     let currentGuildId = interaction.guildId;
     if (currentDateTimestamp - lastRequestTimestamp > 59 || guildIdDatabase !== currentGuildId) {
-      if (new Date().getMinutes() < 10 || amountDb < 6) {
+      if (new Date().getMinutes() < 10 || amountDb < 5) {
         await getCurrentTerrorZoneData().then(data => {
           db.set("guildId", interaction.guildId).then(() => { });
           let act = data.terrorZone.act;
