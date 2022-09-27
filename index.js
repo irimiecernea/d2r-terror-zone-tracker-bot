@@ -58,7 +58,7 @@ client.on('interactionCreate', async interaction => {
           db.set("lastReportMiliseconds", lastReportMiliseconds).then(() => { });
         })
         setCurrentTimestampInDb()
-        console.log(`Data served from API because amount is <= ${amount}`);
+        console.log(`Data served from API because amount in database is <= ${amount}`);
       } else {
         zone = await db.get("zone").then(value => {
           return value;
