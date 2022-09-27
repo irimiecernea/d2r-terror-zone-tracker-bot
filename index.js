@@ -4,6 +4,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const Database = require("@replit/database")
 const cron = require('node-cron');
 const fetch = require('isomorphic-fetch');
+let endOfHour = require('date-fns/endOfHour')
 const db = new Database();
 let zone;
 let amount;
@@ -43,6 +44,9 @@ client.on('interactionCreate', async interaction => {
     let lastRequestTimestamp = await getLastRequestTimestampFromDb();
     let guildIdDatabase = await getGuildIdFromDatabase();
     let currentGuildId = interaction.guildId;
+    let endOfCurrentHour = endOfHour(new Date());
+    endOfCurrentHour = endOfCurrentHour / 1000;
+    let endOfHourTimestamp = endOfCurrentHour.toString().split('.')[0];
     if (currentDateTimestamp - lastRequestTimestamp > 59 || guildIdDatabase !== currentGuildId) {
       if (new Date().getMinutes() < 10 || amountDb < 5) {
         await getCurrentTerrorZoneData().then(data => {
@@ -58,7 +62,7 @@ client.on('interactionCreate', async interaction => {
           db.set("lastReportMiliseconds", lastReportMiliseconds).then(() => { });
         })
         setCurrentTimestampInDb()
-        console.log(`Data served from API because amount in database is <= ${amount}`);
+        console.log(`Data served from API because amount in database is <= ${amountDb}`);
       } else {
         zone = await db.get("zone").then(value => {
           return value;
@@ -73,7 +77,7 @@ client.on('interactionCreate', async interaction => {
           return value;
         });
         setCurrentTimestampInDb()
-        console.log(`Data served from DB because amount is >= ${amount}`);
+        console.log(`Data served from DB because amount is >= ${amountDb}`);
       }
       const exampleEmbed = new EmbedBuilder()
         .setColor(0x9900FF)
@@ -85,7 +89,8 @@ client.on('interactionCreate', async interaction => {
           { name: 'Terrorized Zone(s)', value: zone },
           { name: 'Act', value: formattedAct },
           { name: 'Confirmed by:', value: `${amount} user(s)`, inline: true },
-          { name: 'Last report:', value: `<t:${lastReportMiliseconds}:R>`, inline: true },
+          { name: 'Last user report:', value: `<t:${lastReportMiliseconds}:R>`, inline: true },
+          { name: 'Zone will change:', value: `<t:${endOfHourTimestamp}:R>` }
         )
         .setFooter({ text: 'Bot created by volkunus#7863. Data provided by https://d2runewizard.com/terror-zone-tracker' });
 
