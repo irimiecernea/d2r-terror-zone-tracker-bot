@@ -2,7 +2,6 @@ const { EmbedBuilder } = require('discord.js');
 const { Client, GatewayIntentBits } = require('discord.js');
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const Database = require("@replit/database")
-const cron = require('node-cron');
 const fetch = require('isomorphic-fetch');
 let endOfHour = require('date-fns/endOfHour')
 const db = new Database();
@@ -11,22 +10,14 @@ let amount;
 let formattedAct;
 let lastReportMiliseconds;
 
+const cron = require('node-cron');
 // re-setting amount in database, to avoid caching forever
-cron.schedule('1,59 * * * *', () => {
+cron.schedule('0 * * * *', () => {
   db.set("amount", '0').then(() => {
     console.log(`Re-setting amount to 0 in the database.`);
     console.log(new Date());
   });
 });
-
-async function getCurrentTerrorZoneData() {
-  return fetch("https://d2runewizard.com/api/terror-zone")
-    .then(res => {
-      return res.json()
-    }).then(data => {
-      return data
-    })
-}
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
@@ -86,8 +77,8 @@ client.on('interactionCreate', async interaction => {
         .setDescription('A detailed report of the currently terrorized zone in Diablo 2: Resurrected')
         .setThumbnail('https://media.moddb.com/images/members/5/4358/4357203/profile/d2r.jpg')
         .addFields(
-          { name: 'Terrorized Zone(s)', value: zone },
-          { name: 'Act', value: formattedAct },
+          { name: 'Terrorized zone(s):', value: zone },
+          { name: 'Act:', value: formattedAct },
           { name: 'Confirmed by:', value: `${amount} user(s)`, inline: true },
           { name: 'Last user report:', value: `<t:${lastReportMiliseconds}:R>`, inline: true },
           { name: 'Zone will change:', value: `<t:${endOfHourTimestamp}:R>` }
@@ -118,6 +109,15 @@ function getGuildIdFromDatabase() {
   return db.get("guildId").then(value => {
     return value;
   });
+}
+
+async function getCurrentTerrorZoneData() {
+  return fetch("https://d2runewizard.com/api/terror-zone")
+    .then(res => {
+      return res.json()
+    }).then(data => {
+      return data
+    })
 }
 
 client.login(process.env.TOKEN);
