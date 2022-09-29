@@ -21,6 +21,7 @@ cron.schedule('0 * * * *', () => {
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
+  client.user.setActivity('Diablo 2: Resurrected');
 });
 
 client.on('interactionCreate', async interaction => {
@@ -70,7 +71,7 @@ client.on('interactionCreate', async interaction => {
         setCurrentTimestampInDb()
         console.log(`Data served from DB because amount is >= ${amountDb}`);
       }
-      const exampleEmbed = new EmbedBuilder()
+      const successEmbed = new EmbedBuilder()
         .setColor(0x9900FF)
         .setTitle('Terror Zone Tracker Report')
         .setURL('https://d2runewizard.com/terror-zone-tracker')
@@ -85,7 +86,21 @@ client.on('interactionCreate', async interaction => {
         )
         .setFooter({ text: 'Bot created by volkunus#7863. Data provided by https://d2runewizard.com/terror-zone-tracker' });
 
-      await interaction.reply({ embeds: [exampleEmbed] });
+      const errorEmbed = new EmbedBuilder()
+        .setColor(0xFF0000)
+        .setTitle('Error')
+        .setURL('https://d2runewizard.com/terror-zone-tracker')
+        .addFields(
+          { name: 'Error...', value: 'Something went wrong when fetching data from https://d2runewizard.com/terror-zone-tracker. Please reach out to volkunus##7863 on Discord if you see this.' }
+        )
+        .setTimestamp()
+        .setFooter({ text: 'Bot created by volkunus#7863. Data provided by https://d2runewizard.com/terror-zone-tracker' });
+
+      if (!zone) {
+        await interaction.reply({ embeds: [errorEmbed] });
+      } else {
+        await interaction.reply({ embeds: [successEmbed] });
+      }
     } else {
       interaction.reply(`The \`/terrorized\` command can only be used once every 60 seconds. Last successful command was used <t:${lastRequestTimestamp}:R>. Try again shortly.`)
     }
