@@ -3,7 +3,7 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const Database = require("@replit/database")
 const fetch = require('isomorphic-fetch');
-let endOfHour = require('date-fns/endOfHour')
+const endOfHour = require('date-fns/endOfHour')
 const db = new Database();
 let zone;
 let amount;
@@ -19,11 +19,13 @@ cron.schedule('0 * * * *', () => {
   });
 });
 
+//initializing client
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
   client.user.setActivity('Diablo 2: Resurrected');
 });
 
+//listening to commands below
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -40,6 +42,7 @@ client.on('interactionCreate', async interaction => {
     endOfCurrentHour = endOfCurrentHour / 1000;
     let endOfHourTimestamp = endOfCurrentHour.toString().split('.')[0];
     if (currentDateTimestamp - lastRequestTimestamp > 59 || guildIdDatabase !== currentGuildId) {
+      //defining condition on whether to call the API or serve the contents from the database
       if (new Date().getMinutes() < 10 || amountDb < 5) {
         await getCurrentTerrorZoneData().then(data => {
           db.set("guildId", interaction.guildId).then(() => { });
@@ -71,6 +74,8 @@ client.on('interactionCreate', async interaction => {
         setCurrentTimestampInDb()
         console.log(`Data served from DB because amount is >= ${amountDb}`);
       }
+
+      //defining a successful embed, where all the data was fetched correctly and can be returned
       const successEmbed = new EmbedBuilder()
         .setColor(0x9900FF)
         .setTitle('Terror Zone Tracker Report')
@@ -86,6 +91,7 @@ client.on('interactionCreate', async interaction => {
         )
         .setFooter({ text: 'Bot created by volkunus#7863. Data provided by https://d2runewizard.com/terror-zone-tracker' });
 
+      //defining an error embed, which is to be sent when there was something wrong when fetching the data
       const errorEmbed = new EmbedBuilder()
         .setColor(0xFF0000)
         .setTitle('Error')
@@ -96,6 +102,8 @@ client.on('interactionCreate', async interaction => {
         .setTimestamp()
         .setFooter({ text: 'Bot created by volkunus#7863. Data provided by https://d2runewizard.com/terror-zone-tracker' });
 
+
+      //sending a success embed if the zone exists, otherwise return an error embed
       if (!zone) {
         await interaction.reply({ embeds: [errorEmbed] });
       } else {
@@ -107,6 +115,7 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
+//sets the current timestamp in database
 function setCurrentTimestampInDb() {
   let lastRequestTimestamp = new Date().getTime() / 1000
   lastRequestTimestamp = lastRequestTimestamp.toString().split('.')[0];
@@ -114,18 +123,21 @@ function setCurrentTimestampInDb() {
   });
 }
 
+//returning timestamp from database since the last request
 function getLastRequestTimestampFromDb() {
   return db.get("lastRequestTimestamp").then(value => {
     return value;
   });
 }
 
+//returning last guild id where the /terrorized command was used
 function getGuildIdFromDatabase() {
   return db.get("guildId").then(value => {
     return value;
   });
 }
 
+//GET request to https://d2runewizard.com/api/terror-zone and return the entire JSON
 async function getCurrentTerrorZoneData() {
   return fetch("https://d2runewizard.com/api/terror-zone")
     .then(res => {
