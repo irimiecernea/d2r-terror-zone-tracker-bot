@@ -1,5 +1,5 @@
 {
-  "name": "nodejs",
+  "name": "terror-zone-tracker",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,11 +10,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@replit/database": "2.0.2",
-    "@types/node": "18.0.6",
-    "date-fns": "2.29.3",
-    "discord.js": "14.4.0",
-    "isomorphic-fetch": "3.0.0",
-    "node-cron": "3.0.2"
+    "discord.js": "14.25.1"
   }
 }
