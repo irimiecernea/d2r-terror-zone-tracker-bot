@@ -1,4 +1,5 @@
-import { TerrorApiResponse } from '../response/api-response.js';
+import { TerrorApiResponseSuccess } from '../response/success-api-response.js';
+import { TerrorApiResponseFailure } from '../response/failure-api-response.js';
 
 export class APIRequest {
 
@@ -10,7 +11,7 @@ export class APIRequest {
         this.API_TOKEN = API_TOKEN;
     }
 
-async fetchTerrorZone(): Promise<TerrorApiResponse> {
+async fetchTerrorZone(): Promise<TerrorApiResponseSuccess | TerrorApiResponseFailure> {
   const url = new URL(this.API_URL);
   url.searchParams.set('token', this.API_TOKEN);
 
@@ -23,8 +24,14 @@ async fetchTerrorZone(): Promise<TerrorApiResponse> {
       headers: { accept: 'application/json' },
     });
 
-    if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
-    return (await res.json()) as TerrorApiResponse;
+    if (!res.ok) {
+      console.error(`API request failed with status ${res.status}`);
+      return (await res.json()) as TerrorApiResponseFailure;
+      
+    } else {
+      return (await res.json()) as TerrorApiResponseSuccess;
+    }
+    
   } finally {
     clearTimeout(timeout);
   }
