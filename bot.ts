@@ -4,13 +4,11 @@ import { join } from 'node:path';
 import { REST, Routes, Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
 import { APIRequest } from './api/request/api-request.js';
 import { Embeds } from './embeds.js';
-import { TerrorApiResponseFailure } from './api/response/failure-api-response.js';
-import { TerrorApiResponseSuccess, TerrorApiZoneEntry } from './api/response/success-api-response.js';
-import { TerrorZoneDisplayPayload } from './api/response/terror-zone-display.js';
 import {
   PersistedTrackedTerrorMessage,
   TrackedTerrorMessage,
 } from './api/response/tracked-terror-message.js';
+import { Helper } from './helpers/helper.js';
 
 const TOKEN = process.env.TOKEN?.trim();
 const CLIENT_ID = process.env.CLIENT_ID?.trim();
@@ -50,123 +48,29 @@ const IMMUNITY_EMOJI_MAP: Record<string, string> = {
 };
 
 const trackedMessages = new Map<string, TrackedTerrorMessage>();
+const terrorZoneHelper = new Helper({
+  nextZoneLoadingPlaceholder: NEXT_ZONE_LOADING_PLACEHOLDER,
+  immunitiesLoadingPlaceholder: IMMUNITIES_LOADING_PLACEHOLDER,
+  immunityEmojiMap: IMMUNITY_EMOJI_MAP,
+});
 
-function isSuccessResponse(
-  data: TerrorApiResponseSuccess | TerrorApiResponseFailure,
-): data is TerrorApiResponseSuccess {
-  return !('message' in data);
-}
-
-function nowUnixSeconds(): number {
-  return Math.floor(Date.now() / 1000);
-}
-
-function toDelayMs(targetUnixSeconds: number, offsetSeconds = 0): number {
-  const targetMs = (targetUnixSeconds + offsetSeconds) * 1000;
-  return Math.max(1000, targetMs - Date.now());
-}
-
-function toPersistedTrackedMessage(
-  message: TrackedTerrorMessage,
-): PersistedTrackedTerrorMessage {
-  return {
-    messageId: message.messageId,
-    guildId: message.guildId,
-    channelId: message.channelId,
-    currentTerrorZone: message.currentTerrorZone,
-    nextTerrorZone: message.nextTerrorZone,
-  };
-}
-
-function findTrackedMessageByGuildId(guildId: string): [string, TrackedTerrorMessage] | null {
-  for (const entry of trackedMessages.entries()) {
-    if (entry[1].guildId === guildId) return entry;
-  }
-  return null;
-}
-
-function mapZoneEntry(entry: TerrorApiZoneEntry): TerrorZoneDisplayPayload['currentTerrorZone'] {
-  const immunityIcons = entry.immunities
-    .map(code => IMMUNITY_EMOJI_MAP[code] ?? `\`${code}\``)
-    .join(' ');
-
-  return {
-    zone: entry.zone_name.map(name => name.replace(/_/g, ' ')).join(', '),
-    startTime: entry.time,
-    immunities: immunityIcons || 'Unknown',
-  };
-}
-
-function mapApiDataToDisplayPayload(apiData: TerrorApiResponseSuccess): TerrorZoneDisplayPayload | null {
-  if (apiData.length === 0) return null;
-
-  const now = nowUnixSeconds();
-  const sortedByTime = [...apiData].sort((a, b) => a.time - b.time);
-
-  const current =
-    sortedByTime.find(entry => entry.time <= now && now < entry.end_time) ??
-    [...sortedByTime].reverse().find(entry => entry.time <= now) ??
-    sortedByTime[0];
-
-  const next = sortedByTime.find(entry => entry.time > current.time);
-
-  return {
-    currentTerrorZone: mapZoneEntry(current),
-    nextTerrorZone: next
-      ? mapZoneEntry(next)
-      : {
-          zone: NEXT_ZONE_LOADING_PLACEHOLDER,
-          startTime: current.end_time,
-          immunities: IMMUNITIES_LOADING_PLACEHOLDER,
-        },
-  };
-}
-
+/**
+ * Loads tracked message entries from `terrorized-store.json`.
+ * Parsed data is validated/normalized through `TerrorZoneHelper`.
+ * Returns an empty array when file is missing or unreadable.
+ */
 async function loadTrackedMessagesFromStore(): Promise<PersistedTrackedTerrorMessage[]> {
   try {
     const rawContent = await readFile(TRACKED_MESSAGES_STORE_PATH, 'utf-8');
     const parsed = JSON.parse(rawContent);
 
+    const entries = terrorZoneHelper.parsePersistedTrackedMessages(parsed);
     if (!Array.isArray(parsed)) {
       console.warn('terrorized-store.json is not an array. Starting with empty tracked messages.');
-      return [];
+      return entries;
     }
 
-    return parsed
-      .filter(entry => {
-        return Boolean(
-          entry &&
-            typeof entry.messageId === 'string' &&
-            typeof entry.channelId === 'string' &&
-            entry.currentTerrorZone &&
-            typeof entry.currentTerrorZone.zone === 'string' &&
-            entry.nextTerrorZone &&
-            typeof entry.nextTerrorZone.zone === 'string',
-        );
-      })
-      .map(
-        (entry): PersistedTrackedTerrorMessage => ({
-          messageId: entry.messageId,
-          guildId: typeof entry.guildId === 'string' ? entry.guildId : 'unknown',
-          channelId: entry.channelId,
-          currentTerrorZone: {
-            zone: entry.currentTerrorZone.zone,
-            startTime: typeof entry.currentTerrorZone.startTime === 'number' ? entry.currentTerrorZone.startTime : 0,
-            immunities:
-              typeof entry.currentTerrorZone.immunities === 'string'
-                ? entry.currentTerrorZone.immunities
-                : 'Unknown',
-          },
-          nextTerrorZone: {
-            zone: entry.nextTerrorZone.zone,
-            startTime: typeof entry.nextTerrorZone.startTime === 'number' ? entry.nextTerrorZone.startTime : 0,
-            immunities:
-              typeof entry.nextTerrorZone.immunities === 'string'
-                ? entry.nextTerrorZone.immunities
-                : IMMUNITIES_LOADING_PLACEHOLDER,
-          },
-        }),
-      );
+    return entries;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return [];
@@ -177,11 +81,21 @@ async function loadTrackedMessagesFromStore(): Promise<PersistedTrackedTerrorMes
   }
 }
 
+/**
+ * Persists the in-memory tracked message map to `terrorized-store.json`.
+ */
 async function saveTrackedMessagesToStore(): Promise<void> {
-  const serializableEntries = Array.from(trackedMessages.values()).map(toPersistedTrackedMessage);
+  const serializableEntries = Array.from(trackedMessages.values()).map(message =>
+    terrorZoneHelper.toPersistedTrackedMessage(message),
+  );
   await writeFile(TRACKED_MESSAGES_STORE_PATH, JSON.stringify(serializableEntries, null, 2), 'utf-8');
 }
 
+/**
+ * Stops tracking a message.
+ * Clears both timers, removes the entry from memory, and persists the store update.
+ * @param messageId Discord message id used as tracking key.
+ */
 function stopTracking(messageId: string): void {
   const tracked = trackedMessages.get(messageId);
   if (!tracked) return;
@@ -194,8 +108,14 @@ function stopTracking(messageId: string): void {
   });
 }
 
+/**
+ * Checks if a guild can create a new tracker message.
+ * If an existing tracked message is stale/unavailable, it is removed and creation is allowed.
+ * @param guildId Discord guild id.
+ * @returns `true` if tracker creation is allowed, otherwise `false`.
+ */
 async function canCreateTrackedMessageForGuild(guildId: string): Promise<boolean> {
-  const existing = findTrackedMessageByGuildId(guildId);
+  const existing = terrorZoneHelper.findTrackedMessageByGuildId(trackedMessages, guildId);
   if (!existing) return true;
 
   const [messageId, tracked] = existing;
@@ -215,8 +135,14 @@ async function canCreateTrackedMessageForGuild(guildId: string): Promise<boolean
   }
 }
 
+/**
+ * Removes the active tracked message for a guild.
+ * Attempts Discord message deletion first, then always clears local tracking/state.
+ * @param guildId Discord guild id.
+ * @returns `true` when a tracked entry existed and was removed, else `false`.
+ */
 async function removeTrackedMessageForGuild(guildId: string): Promise<boolean> {
-  const existing = findTrackedMessageByGuildId(guildId);
+  const existing = terrorZoneHelper.findTrackedMessageByGuildId(trackedMessages, guildId);
   if (!existing) return false;
 
   const [messageId, tracked] = existing;
@@ -236,6 +162,11 @@ async function removeTrackedMessageForGuild(guildId: string): Promise<boolean> {
   return true;
 }
 
+/**
+ * Updates an existing tracked Discord message embed using current in-memory zone data.
+ * If message/channel is no longer accessible, the tracker entry is removed.
+ * @param messageId Discord message id to edit.
+ */
 async function editTrackedMessage(messageId: string): Promise<void> {
   const tracked = trackedMessages.get(messageId);
   if (!tracked) return;
@@ -262,12 +193,18 @@ async function editTrackedMessage(messageId: string): Promise<void> {
   }
 }
 
+/**
+ * Refreshes tracked data from API for one message.
+ * Handles retries for API failures/empty payloads/stale confirmations,
+ * persists state, edits message content, then schedules next boundary update.
+ * @param messageId Discord message id tied to tracker state.
+ */
 async function refreshFromApi(messageId: string): Promise<void> {
   const tracked = trackedMessages.get(messageId);
   if (!tracked) return;
 
   const apiData = await apiRequest.fetchTerrorZone();
-  if (!isSuccessResponse(apiData)) {
+  if (!terrorZoneHelper.isSuccessResponse(apiData)) {
     console.error(`Failed refresh for tracked terrorized message ${messageId}: ${apiData.message}`);
     tracked.confirmTimer = setTimeout(() => {
       refreshFromApi(messageId).catch(error => {
@@ -277,7 +214,7 @@ async function refreshFromApi(messageId: string): Promise<void> {
     return;
   }
 
-  const mappedData = mapApiDataToDisplayPayload(apiData);
+  const mappedData = terrorZoneHelper.mapApiDataToDisplayPayload(apiData);
   if (!mappedData) {
     console.error(`No zone entries returned for message ${messageId}.`);
     tracked.confirmTimer = setTimeout(() => {
@@ -317,11 +254,16 @@ async function refreshFromApi(messageId: string): Promise<void> {
   scheduleBoundaryUpdate(messageId);
 }
 
+/**
+ * Schedules the confirmation API refresh after a boundary transition.
+ * @param messageId Discord message id tied to tracker state.
+ * @param startedAtUnixSeconds Unix timestamp (seconds) of the boundary start time.
+ */
 function scheduleConfirmRefresh(messageId: string, startedAtUnixSeconds: number): void {
   const tracked = trackedMessages.get(messageId);
   if (!tracked) return;
 
-  const delayMs = toDelayMs(startedAtUnixSeconds, CONFIRM_REFRESH_DELAY_SECONDS);
+  const delayMs = terrorZoneHelper.toDelayMs(startedAtUnixSeconds, CONFIRM_REFRESH_DELAY_SECONDS);
   tracked.confirmTimer = setTimeout(() => {
     refreshFromApi(messageId).catch(error => {
       console.error(`Confirm refresh failed for message ${messageId}:`, error);
@@ -329,6 +271,12 @@ function scheduleConfirmRefresh(messageId: string, startedAtUnixSeconds: number)
   }, delayMs);
 }
 
+/**
+ * Schedules the next boundary swap based on `nextTerrorZone.startTime`.
+ * On boundary trigger, promotes next->current, sets loading placeholder for next,
+ * persists state, edits message, and schedules confirmation refresh.
+ * @param messageId Discord message id tied to tracker state.
+ */
 function scheduleBoundaryUpdate(messageId: string): void {
   const tracked = trackedMessages.get(messageId);
   if (!tracked) return;
@@ -369,7 +317,7 @@ function scheduleBoundaryUpdate(messageId: string): void {
     });
 
     scheduleConfirmRefresh(messageId, boundaryStartTime);
-  }, toDelayMs(boundaryStartTime));
+  }, terrorZoneHelper.toDelayMs(boundaryStartTime));
 }
 
 try {
@@ -438,15 +386,15 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     const terrorZoneData = await apiRequest.fetchTerrorZone();
-    const mappedData = isSuccessResponse(terrorZoneData)
-      ? mapApiDataToDisplayPayload(terrorZoneData)
+    const mappedData = terrorZoneHelper.isSuccessResponse(terrorZoneData)
+      ? terrorZoneHelper.mapApiDataToDisplayPayload(terrorZoneData)
       : null;
 
     await interaction.reply({
       embeds: [
         embeds.buildTerrorZoneEmbed(
           mappedData ??
-            (isSuccessResponse(terrorZoneData)
+            (terrorZoneHelper.isSuccessResponse(terrorZoneData)
               ? { status: 'error', message: 'API returned no terror zone entries.' }
               : terrorZoneData),
         ),

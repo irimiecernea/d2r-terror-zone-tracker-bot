@@ -3,6 +3,11 @@ import { TerrorZoneDisplayPayload } from './api/response/terror-zone-display.js'
 import { EmbedBuilder } from 'discord.js';
 
 export class Embeds {
+    /**
+     * Builds the Discord embed used for `/terrorized` replies and tracker edits.
+     * Accepts either success display payload or failure payload from API flow.
+     * @param data Mapped terror zone payload or API failure payload.
+     */
     buildTerrorZoneEmbed(data: TerrorZoneDisplayPayload | TerrorApiResponseFailure): EmbedBuilder {
         if ('message' in data) {
             const failureEmbed = new EmbedBuilder()
