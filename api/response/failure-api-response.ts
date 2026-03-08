@@ -1,5 +1,4 @@
 export interface TerrorApiResponseFailure {
+    status: string;
     message: string;
-    providedBy: string;
-    version: string;
 }

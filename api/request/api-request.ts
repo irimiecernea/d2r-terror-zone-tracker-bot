@@ -13,7 +13,6 @@ export class APIRequest {
 
 async fetchTerrorZone(): Promise<TerrorApiResponseSuccess | TerrorApiResponseFailure> {
   const url = new URL(this.API_URL);
-  url.searchParams.set('token', this.API_TOKEN);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
@@ -21,7 +20,7 @@ async fetchTerrorZone(): Promise<TerrorApiResponseSuccess | TerrorApiResponseFai
   try {
     const res = await fetch(url.toString(), {
       signal: controller.signal,
-      headers: { accept: 'application/json' },
+      headers: { accept: 'application/json', authorization: `${this.API_TOKEN}` },
     });
 
     if (!res.ok) {
@@ -29,6 +28,7 @@ async fetchTerrorZone(): Promise<TerrorApiResponseSuccess | TerrorApiResponseFai
       return (await res.json()) as TerrorApiResponseFailure;
       
     } else {
+      console.log('API request successful');
       return (await res.json()) as TerrorApiResponseSuccess;
     }
     
