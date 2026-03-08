@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { REST, Routes, Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
 import { APIRequest } from './api/request/api-request.js';
 import { Embeds } from './embeds.js';
@@ -34,7 +34,7 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 const apiRequest = new APIRequest(API_URL, API_TOKEN);
 const embeds = new Embeds();
-const TRACKED_MESSAGES_STORE_PATH = join(process.cwd(), 'terrorized-store.json');
+const TRACKED_MESSAGES_STORE_PATH = join(process.cwd(), 'data', 'terrorized-store.json');
 const NEXT_ZONE_LOADING_PLACEHOLDER = '⏳ Refreshing...';
 const IMMUNITIES_LOADING_PLACEHOLDER = '⏳ Refreshing...';
 const CONFIRM_REFRESH_DELAY_SECONDS = 90;
@@ -91,6 +91,7 @@ async function saveTrackedMessagesToStore(): Promise<void> {
   const serializableEntries = Array.from(trackedMessages.values()).map(message =>
     terrorZoneHelper.toPersistedTrackedMessage(message),
   );
+  await mkdir(dirname(TRACKED_MESSAGES_STORE_PATH), { recursive: true });
   await writeFile(TRACKED_MESSAGES_STORE_PATH, JSON.stringify(serializableEntries, null, 2), 'utf-8');
 }
 

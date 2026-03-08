@@ -7,6 +7,7 @@ Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using 
 - Slash command `/terrorized` posts current and next terrorized zones.
 - Message auto-updates when zone rotation changes.
 - Confirmation refresh runs after rotation to sync with API updates.
+- A single API call is made per zone update, even if the bot is part of multiple guilds.
 - Immunities are displayed with emoji mapping:
   - `f` -> `:fire:`
   - `c` -> `:snowflake:`
