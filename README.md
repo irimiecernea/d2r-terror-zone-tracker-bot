@@ -20,7 +20,7 @@ Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using 
 
 ## Requirements
 
-- Node.js 20+ (recommended)
+- [nvm](https://github.com/nvm-sh/nvm)
 - A Discord application + bot token
 
 ## Environment Variables
@@ -37,6 +37,7 @@ API_TOKEN=your_api_token_if_required
 ## Install
 
 ```bash
+nvm use
 npm install
 ```
 

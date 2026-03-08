@@ -48,6 +48,9 @@ const IMMUNITY_EMOJI_MAP: Record<string, string> = {
 };
 
 const trackedMessages = new Map<string, TrackedTerrorMessage>();
+let globalBoundaryTimer: NodeJS.Timeout | undefined;
+let globalConfirmTimer: NodeJS.Timeout | undefined;
+let expectedCurrentStartTimeAfterBoundary: number | null = null;
 const terrorZoneHelper = new Helper({
   nextZoneLoadingPlaceholder: NEXT_ZONE_LOADING_PLACEHOLDER,
   immunitiesLoadingPlaceholder: IMMUNITIES_LOADING_PLACEHOLDER,
@@ -103,6 +106,15 @@ function stopTracking(messageId: string): void {
   if (tracked.boundaryTimer) clearTimeout(tracked.boundaryTimer);
   if (tracked.confirmTimer) clearTimeout(tracked.confirmTimer);
   trackedMessages.delete(messageId);
+
+  if (trackedMessages.size === 0) {
+    if (globalBoundaryTimer) clearTimeout(globalBoundaryTimer);
+    if (globalConfirmTimer) clearTimeout(globalConfirmTimer);
+    globalBoundaryTimer = undefined;
+    globalConfirmTimer = undefined;
+    expectedCurrentStartTimeAfterBoundary = null;
+  }
+
   saveTrackedMessagesToStore().catch(error => {
     console.error('Failed to persist tracked terrorized messages after removal:', error);
   });
@@ -194,21 +206,84 @@ async function editTrackedMessage(messageId: string): Promise<void> {
 }
 
 /**
- * Refreshes tracked data from API for one message.
- * Handles retries for API failures/empty payloads/stale confirmations,
- * persists state, edits message content, then schedules next boundary update.
- * @param messageId Discord message id tied to tracker state.
+ * Applies one mapped payload to every tracked message in memory.
+ * @param mappedData Shared mapped payload from a single API response.
  */
-async function refreshFromApi(messageId: string): Promise<void> {
-  const tracked = trackedMessages.get(messageId);
-  if (!tracked) return;
+function applyMappedDataToAllTrackedMessages(mappedData: ReturnType<Helper['mapApiDataToDisplayPayload']>): void {
+  if (!mappedData) return;
+  for (const tracked of trackedMessages.values()) {
+    tracked.currentTerrorZone = mappedData.currentTerrorZone;
+    tracked.nextTerrorZone = mappedData.nextTerrorZone;
+  }
+}
+
+/**
+ * Edits all tracked Discord messages with current in-memory state.
+ */
+async function editAllTrackedMessages(): Promise<void> {
+  const messageIds = [...trackedMessages.keys()];
+  await Promise.allSettled(messageIds.map(messageId => editTrackedMessage(messageId)));
+}
+
+/**
+ * Clears and recreates global boundary/confirm timers from a shared next start timestamp.
+ * @param nextStartUnixSeconds Shared next zone start timestamp (seconds).
+ */
+function scheduleGlobalTimers(nextStartUnixSeconds: number): void {
+  if (globalBoundaryTimer) clearTimeout(globalBoundaryTimer);
+  if (globalConfirmTimer) clearTimeout(globalConfirmTimer);
+  globalBoundaryTimer = undefined;
+  globalConfirmTimer = undefined;
+
+  if (trackedMessages.size === 0 || nextStartUnixSeconds <= 0) return;
+
+  globalBoundaryTimer = setTimeout(() => {
+    for (const tracked of trackedMessages.values()) {
+      if (tracked.nextTerrorZone.zone !== NEXT_ZONE_LOADING_PLACEHOLDER) {
+        tracked.currentTerrorZone = tracked.nextTerrorZone;
+      }
+
+      tracked.nextTerrorZone = {
+        zone: NEXT_ZONE_LOADING_PLACEHOLDER,
+        startTime: 0,
+        immunities: IMMUNITIES_LOADING_PLACEHOLDER,
+      };
+    }
+
+    expectedCurrentStartTimeAfterBoundary = nextStartUnixSeconds;
+
+    saveTrackedMessagesToStore().catch(error => {
+      console.error('Failed to persist tracked terrorized messages after boundary update:', error);
+    });
+    editAllTrackedMessages().catch(error => {
+      console.error('Failed to edit tracked terrorized messages after boundary update:', error);
+    });
+
+    globalConfirmTimer = setTimeout(() => {
+      refreshAllFromApi().catch(error => {
+        console.error('Confirm refresh failed for tracked terrorized messages:', error);
+      });
+    }, terrorZoneHelper.toDelayMs(nextStartUnixSeconds, CONFIRM_REFRESH_DELAY_SECONDS));
+  }, terrorZoneHelper.toDelayMs(nextStartUnixSeconds));
+}
+
+/**
+ * Refreshes all tracked messages using one shared API call.
+ * Handles retries for API failures/empty payloads/stale confirmations,
+ * then persists state, edits messages, and reschedules global timers.
+ */
+async function refreshAllFromApi(): Promise<void> {
+  if (trackedMessages.size === 0) return;
+  const trackedCount = trackedMessages.size;
+  const avoidedCalls = Math.max(0, trackedCount - 1);
 
   const apiData = await apiRequest.fetchTerrorZone();
   if (!terrorZoneHelper.isSuccessResponse(apiData)) {
-    console.error(`Failed refresh for tracked terrorized message ${messageId}: ${apiData.message}`);
-    tracked.confirmTimer = setTimeout(() => {
-      refreshFromApi(messageId).catch(error => {
-        console.error(`Retry refresh failed for message ${messageId}:`, error);
+    console.log(`[refresh] tracked=${trackedCount}, api_calls=1, avoided=${avoidedCalls}`);
+    console.error(`Failed shared refresh for tracked terrorized messages: ${apiData.message}`);
+    globalConfirmTimer = setTimeout(() => {
+      refreshAllFromApi().catch(error => {
+        console.error('Retry shared refresh failed for tracked terrorized messages:', error);
       });
     }, 30_000);
     return;
@@ -216,33 +291,33 @@ async function refreshFromApi(messageId: string): Promise<void> {
 
   const mappedData = terrorZoneHelper.mapApiDataToDisplayPayload(apiData);
   if (!mappedData) {
-    console.error(`No zone entries returned for message ${messageId}.`);
-    tracked.confirmTimer = setTimeout(() => {
-      refreshFromApi(messageId).catch(error => {
-        console.error(`Retry refresh failed for message ${messageId}:`, error);
+    console.log(`[refresh] tracked=${trackedCount}, api_calls=1, avoided=${avoidedCalls}`);
+    console.error('No zone entries returned for shared tracked terrorized refresh.');
+    globalConfirmTimer = setTimeout(() => {
+      refreshAllFromApi().catch(error => {
+        console.error('Retry shared refresh failed for tracked terrorized messages:', error);
       });
     }, 30_000);
     return;
   }
 
-  const isAwaitingBoundaryConfirmation = tracked.nextTerrorZone.zone === NEXT_ZONE_LOADING_PLACEHOLDER;
   const isStaleConfirmation =
-    isAwaitingBoundaryConfirmation &&
+    expectedCurrentStartTimeAfterBoundary !== null &&
     mappedData.currentTerrorZone.startTime > 0 &&
-    tracked.currentTerrorZone.startTime > 0 &&
-    mappedData.currentTerrorZone.startTime < tracked.currentTerrorZone.startTime;
+    mappedData.currentTerrorZone.startTime < expectedCurrentStartTimeAfterBoundary;
 
   if (isStaleConfirmation) {
-    tracked.confirmTimer = setTimeout(() => {
-      refreshFromApi(messageId).catch(error => {
-        console.error(`Retry refresh failed for message ${messageId}:`, error);
+    globalConfirmTimer = setTimeout(() => {
+      refreshAllFromApi().catch(error => {
+        console.error('Retry shared refresh failed for tracked terrorized messages:', error);
       });
     }, 30_000);
     return;
   }
 
-  tracked.currentTerrorZone = mappedData.currentTerrorZone;
-  tracked.nextTerrorZone = mappedData.nextTerrorZone;
+  applyMappedDataToAllTrackedMessages(mappedData);
+  console.log(`[refresh] tracked=${trackedCount}, api_calls=1, avoided=${avoidedCalls}`);
+  expectedCurrentStartTimeAfterBoundary = null;
 
   try {
     await saveTrackedMessagesToStore();
@@ -250,74 +325,8 @@ async function refreshFromApi(messageId: string): Promise<void> {
     console.error('Failed to persist tracked terrorized messages after refresh:', error);
   }
 
-  await editTrackedMessage(messageId);
-  scheduleBoundaryUpdate(messageId);
-}
-
-/**
- * Schedules the confirmation API refresh after a boundary transition.
- * @param messageId Discord message id tied to tracker state.
- * @param startedAtUnixSeconds Unix timestamp (seconds) of the boundary start time.
- */
-function scheduleConfirmRefresh(messageId: string, startedAtUnixSeconds: number): void {
-  const tracked = trackedMessages.get(messageId);
-  if (!tracked) return;
-
-  const delayMs = terrorZoneHelper.toDelayMs(startedAtUnixSeconds, CONFIRM_REFRESH_DELAY_SECONDS);
-  tracked.confirmTimer = setTimeout(() => {
-    refreshFromApi(messageId).catch(error => {
-      console.error(`Confirm refresh failed for message ${messageId}:`, error);
-    });
-  }, delayMs);
-}
-
-/**
- * Schedules the next boundary swap based on `nextTerrorZone.startTime`.
- * On boundary trigger, promotes next->current, sets loading placeholder for next,
- * persists state, edits message, and schedules confirmation refresh.
- * @param messageId Discord message id tied to tracker state.
- */
-function scheduleBoundaryUpdate(messageId: string): void {
-  const tracked = trackedMessages.get(messageId);
-  if (!tracked) return;
-
-  if (tracked.boundaryTimer) clearTimeout(tracked.boundaryTimer);
-  if (tracked.confirmTimer) clearTimeout(tracked.confirmTimer);
-
-  const boundaryStartTime = tracked.nextTerrorZone.startTime;
-  if (boundaryStartTime <= 0) {
-    tracked.confirmTimer = setTimeout(() => {
-      refreshFromApi(messageId).catch(error => {
-        console.error(`Boundary recovery refresh failed for message ${messageId}:`, error);
-      });
-    }, 30_000);
-    return;
-  }
-
-  tracked.boundaryTimer = setTimeout(() => {
-    const latest = trackedMessages.get(messageId);
-    if (!latest) return;
-
-    if (latest.nextTerrorZone.zone !== NEXT_ZONE_LOADING_PLACEHOLDER) {
-      latest.currentTerrorZone = latest.nextTerrorZone;
-    }
-
-    latest.nextTerrorZone = {
-      zone: NEXT_ZONE_LOADING_PLACEHOLDER,
-      startTime: 0,
-      immunities: IMMUNITIES_LOADING_PLACEHOLDER,
-    };
-
-    saveTrackedMessagesToStore().catch(error => {
-      console.error('Failed to persist tracked terrorized messages after boundary update:', error);
-    });
-
-    editTrackedMessage(messageId).catch(error => {
-      console.error(`Boundary edit failed for message ${messageId}:`, error);
-    });
-
-    scheduleConfirmRefresh(messageId, boundaryStartTime);
-  }, terrorZoneHelper.toDelayMs(boundaryStartTime));
+  await editAllTrackedMessages();
+  scheduleGlobalTimers(mappedData.nextTerrorZone.startTime);
 }
 
 try {
@@ -338,13 +347,12 @@ client.on(Events.ClientReady, readyClient => {
     .then(entries => {
       for (const entry of entries) {
         trackedMessages.set(entry.messageId, { ...entry });
-        scheduleBoundaryUpdate(entry.messageId);
-        refreshFromApi(entry.messageId).catch(error => {
-          console.error(`Startup refresh failed for message ${entry.messageId}:`, error);
-        });
       }
 
       console.log(`Loaded ${entries.length} tracked terrorized message(s) from store.`);
+      refreshAllFromApi().catch(error => {
+        console.error('Startup shared refresh failed for tracked terrorized messages:', error);
+      });
     })
     .catch(error => {
       console.error('Failed to restore tracked terrorized messages on startup:', error);
@@ -416,7 +424,7 @@ client.on(Events.InteractionCreate, async interaction => {
     saveTrackedMessagesToStore().catch(error => {
       console.error('Failed to persist tracked terrorized messages after command:', error);
     });
-    scheduleBoundaryUpdate(reply.id);
+    scheduleGlobalTimers(mappedData.nextTerrorZone.startTime);
   }
 });
 
