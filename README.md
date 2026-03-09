@@ -1,6 +1,6 @@
 # D2R Terror Zone Tracker Bot
 
-Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using the [https://www.d2tz.info](d2tz.info) API.
+Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using the [d2tz.info](https://www.d2tz.info) API.
 
 ## Features
 
@@ -23,7 +23,7 @@ Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using 
 
 - [nvm](https://github.com/nvm-sh/nvm)
 - A Discord application + bot token
-- An API Authorization token from [https://www.d2tz.info](d2tz.info)
+- An API Authorization token from [d2tz.info](https://www.d2tz.info)
 
 ## Environment Variables
 
