@@ -37,7 +37,7 @@ API_TOKEN=your_api_token
 CONFIRM_REFRESH_DELAY_SECONDS=90
 ```
 
-`CONFIRM_REFRESH_DELAY_SECONDS` is required and must be an integer between `45` and `120`.
+`CONFIRM_REFRESH_DELAY_SECONDS` must be an integer between `45` and `120`. Since Terror Zones change every 30 minutes, it represents the delay to be added to the 30th and 60th minute, after which an API call will be made to refresh the upcoming zone.
 
 ## Install
 
