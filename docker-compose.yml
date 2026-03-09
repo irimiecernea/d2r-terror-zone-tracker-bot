@@ -1,0 +1,18 @@
+services:
+  d2r-terror-zone-bot:
+    image: volkunus/d2r-terror-zone-tracker-discord-bot:latest
+    container_name: d2r-terror-zone-discord-bot
+    restart: unless-stopped
+    environment:
+      TOKEN: ${TOKEN}
+      CLIENT_ID: ${CLIENT_ID}
+      API_URL: ${API_URL}
+      API_TOKEN: ${API_TOKEN}
+    volumes:
+      - data:/app/data
+    # Alternative host bind mount (uncomment and remove named volume above):
+    # volumes:
+    #   - ./data:/app/data
+
+volumes:
+  data:

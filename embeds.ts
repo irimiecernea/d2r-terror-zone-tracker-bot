@@ -1,24 +1,43 @@
-import { TerrorApiResponse } from './api/response/api-response.js';
+import { TerrorApiResponseFailure } from './api/response/failure-api-response.js';
+import { TerrorZoneDisplayPayload } from './api/response/terror-zone-display.js';
 import { EmbedBuilder } from 'discord.js';
 
 export class Embeds {
+    /**
+     * Builds the Discord embed used for `/terrorized` replies and tracker edits.
+     * Accepts either success display payload or failure payload from API flow.
+     * @param data Mapped terror zone payload or API failure payload.
+     */
+    buildTerrorZoneEmbed(data: TerrorZoneDisplayPayload | TerrorApiResponseFailure): EmbedBuilder {
+        if ('message' in data) {
+            const failureEmbed = new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle('Error fetching Terror Zone data from API')
+                .setDescription(data.message)
+                .setFooter({ text: 'Data provided by API' });
 
-    buildTerrorZoneEmbed(data: TerrorApiResponse): EmbedBuilder {
-        const current = data.currentTerrorZone;
-        const next = data.nextTerrorZone;
+            return failureEmbed;
+        } else {
+            const current = data.currentTerrorZone;
+            const next = data.nextTerrorZone;
 
-        const successEmbed = new EmbedBuilder()
-            .setColor(0x9900FF)
-            .setTitle('Terror Zones')
-            .setURL('https://d2runewizard.com/terror-zone-tracker')
-            .addFields(
-                { name: 'Currently terrorized zone(s):', value: current.zone },
-                { name: 'Act:', value: `${current.act.slice(-1)}` },
-                { name: 'Next terrorized zone:', value: next.zone },
-                { name: 'Act:', value: `${next.act.slice(-1)}` },
-            )
-            .setFooter({ text: 'Bot created by volkunus. Data provided by https://d2runewizard.com/terror-zone-tracker' });
+            const successEmbed = new EmbedBuilder()
+                .setColor(0x9900FF)
+                .setTitle('---------- Terror Zone Status ----------')
+                .addFields(
+                    { name: 'Corrupted tremors strike', value: `***${current.zone}***` },
+                    { name: 'Immunities:', value: current.immunities },
+                    { name: 'Loot Tier:', value: `**${current.lootTier}**` },
+                    { name: 'Started:', value: current.startTime > 0 ? `<t:${current.startTime}:R>` : 'Unknown' },
+                    { name: '\u200B', value: '\u200B' },
+                    { name: 'Next', value: `***${next.zone}***` },
+                    { name: 'Immunities:', value: next.immunities },
+                    { name: 'Loot Tier:', value: `**${next.lootTier}**` },
+                    { name: 'Starting:', value: next.zone === '⏳ Refreshing...' || next.startTime <= 0 ? '⏳ Refreshing...' : `<t:${next.startTime}:R>`},
+                )
+                .setFooter({ text: 'Bot created by volkunus. Data courtesy of d2tz.info' });
 
-        return successEmbed;
+            return successEmbed;
+        }
     }
 }
