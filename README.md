@@ -34,7 +34,10 @@ TOKEN=your_discord_bot_token
 CLIENT_ID=your_discord_application_id
 API_URL=https://api.d2tz.info/public/tz
 API_TOKEN=your_api_token
+CONFIRM_REFRESH_DELAY_SECONDS=90
 ```
+
+`CONFIRM_REFRESH_DELAY_SECONDS` is required and must be an integer between `45` and `120`.
 
 ## Install
 
