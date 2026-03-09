@@ -1,6 +1,6 @@
 # D2R Terror Zone Tracker Bot
 
-Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using a public API.
+Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using the [https://www.d2tz.info](d2tz.info) API.
 
 ## Features
 
@@ -23,6 +23,7 @@ Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using 
 
 - [nvm](https://github.com/nvm-sh/nvm)
 - A Discord application + bot token
+- An API Authorization token from [https://www.d2tz.info](d2tz.info)
 
 ## Environment Variables
 
@@ -31,8 +32,8 @@ Create `.env` in project root:
 ```env
 TOKEN=your_discord_bot_token
 CLIENT_ID=your_discord_application_id
-API_URL=https://your-terror-zone-api-endpoint
-API_TOKEN=your_api_token_if_required
+API_URL=https://api.d2tz.info/public/tz
+API_TOKEN=your_api_token
 ```
 
 ## Install
@@ -74,3 +75,10 @@ npm run dev
 - `npm run build` -> TypeScript compile to `dist/`
 - `npm start` -> build + run `dist/bot.js`
 - `npm run dev` -> run `dist/bot.js` in watch mode
+
+## Deploy with Docker Compose
+
+1. Create a new directory on your machine and `cd` to it
+2. Create a new file named `docker-compose.yml` and copy the contents to it
+3. Create a `.env` file with the required Environment Variables in the same directory as the `docker-compose.yml` and populate it with the proper variables as instructed above
+4. Run `docker compose up -d && docker compose logs -f`

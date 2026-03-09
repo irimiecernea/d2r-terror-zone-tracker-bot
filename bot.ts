@@ -37,6 +37,7 @@ const embeds = new Embeds();
 const TRACKED_MESSAGES_STORE_PATH = join(process.cwd(), 'data', 'terrorized-store.json');
 const NEXT_ZONE_LOADING_PLACEHOLDER = '⏳ Refreshing...';
 const IMMUNITIES_LOADING_PLACEHOLDER = '⏳ Refreshing...';
+const LOOT_TIER_LOADING_PLACEHOLDER = '⏳ Refreshing...';
 const CONFIRM_REFRESH_DELAY_SECONDS = 90;
 const IMMUNITY_EMOJI_MAP: Record<string, string> = {
   f: ':fire:',
@@ -54,6 +55,7 @@ let expectedCurrentStartTimeAfterBoundary: number | null = null;
 const terrorZoneHelper = new Helper({
   nextZoneLoadingPlaceholder: NEXT_ZONE_LOADING_PLACEHOLDER,
   immunitiesLoadingPlaceholder: IMMUNITIES_LOADING_PLACEHOLDER,
+  lootTierLoadingPlaceholder: LOOT_TIER_LOADING_PLACEHOLDER,
   immunityEmojiMap: IMMUNITY_EMOJI_MAP,
 });
 
@@ -248,6 +250,7 @@ function scheduleGlobalTimers(nextStartUnixSeconds: number): void {
         zone: NEXT_ZONE_LOADING_PLACEHOLDER,
         startTime: 0,
         immunities: IMMUNITIES_LOADING_PLACEHOLDER,
+        lootTier: LOOT_TIER_LOADING_PLACEHOLDER,
       };
     }
 

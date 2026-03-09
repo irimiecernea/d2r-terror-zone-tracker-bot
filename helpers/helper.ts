@@ -6,12 +6,14 @@ import { TerrorZoneDisplayPayload } from '../api/response/terror-zone-display.js
 interface HelperConfig {
   nextZoneLoadingPlaceholder: string;
   immunitiesLoadingPlaceholder: string;
+  lootTierLoadingPlaceholder: string;
   immunityEmojiMap: Record<string, string>;
 }
 
 export class Helper {
   private readonly nextZoneLoadingPlaceholder: string;
   private readonly immunitiesLoadingPlaceholder: string;
+  private readonly lootTierLoadingPlaceholder: string;
   private readonly immunityEmojiMap: Record<string, string>;
 
   /**
@@ -21,6 +23,7 @@ export class Helper {
   constructor(config: HelperConfig) {
     this.nextZoneLoadingPlaceholder = config.nextZoneLoadingPlaceholder;
     this.immunitiesLoadingPlaceholder = config.immunitiesLoadingPlaceholder;
+    this.lootTierLoadingPlaceholder = config.lootTierLoadingPlaceholder;
     this.immunityEmojiMap = config.immunityEmojiMap;
   }
 
@@ -102,6 +105,7 @@ export class Helper {
             zone: this.nextZoneLoadingPlaceholder,
             startTime: current.end_time,
             immunities: this.immunitiesLoadingPlaceholder,
+            lootTier: this.lootTierLoadingPlaceholder,
           },
     };
   }
@@ -138,6 +142,10 @@ export class Helper {
               typeof entry.currentTerrorZone.immunities === 'string'
                 ? entry.currentTerrorZone.immunities
                 : 'Unknown',
+            lootTier:
+              typeof entry.currentTerrorZone.lootTier === 'string'
+                ? entry.currentTerrorZone.lootTier
+                : 'Unknown',
           },
           nextTerrorZone: {
             zone: entry.nextTerrorZone.zone,
@@ -146,6 +154,10 @@ export class Helper {
               typeof entry.nextTerrorZone.immunities === 'string'
                 ? entry.nextTerrorZone.immunities
                 : this.immunitiesLoadingPlaceholder,
+            lootTier:
+              typeof entry.nextTerrorZone.lootTier === 'string'
+                ? entry.nextTerrorZone.lootTier
+                : this.lootTierLoadingPlaceholder,
           },
         }),
       );
@@ -165,6 +177,7 @@ export class Helper {
       zone: entry.zone_name.map(name => name.replace(/_/g, ' ')).join(', '),
       startTime: entry.time,
       immunities: immunityIcons || 'Unknown',
+      lootTier: entry['tier-loot'] || 'Unknown',
     };
   }
 }
