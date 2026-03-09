@@ -2,6 +2,9 @@
 
 Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using the [d2tz.info](https://www.d2tz.info) API.
 
+> [!NOTE]
+> This is not completely built by AI, but a fair amount was used to build it.
+
 ## Features
 
 - Slash command `/terrorized` posts current and next terrorized zones.
