@@ -12,15 +12,19 @@ Discord bot that posts and auto-updates Diablo 2 Resurrected Terror Zones using 
 - Confirmation refresh runs after rotation to sync with API updates.
 - A single API call is made per zone update, even if the bot is part of multiple guilds.
 - Immunities are displayed with emoji mapping:
-  - `f` -> `:fire:`
-  - `c` -> `:snowflake:`
-  - `l` -> `:zap:`
-  - `p` -> `:test_tube:`
-  - `ph` -> `:crossed_swords:`
-  - `m` -> `:sparkles:`
+  - `fire` -> `:fire:`
+  - `cold` -> `:snowflake:`
+  - `lightning` -> `:zap:`
+  - `poison` -> `:test_tube:`
+  - `physical` -> `:crossed_swords:`
+  - `magic` -> `:sparkles:`
 - One active tracker message per guild.
 - Slash command `/terrorized-remove` removes the guild tracker and clears it from store.
 - Persistent tracker store in `terrorized-store.json` so trackers survive restarts.
+
+## Showcase
+
+![image info](./image.png)
 
 ## Requirements
 
@@ -88,3 +92,7 @@ npm run dev
 2. Create a new file named `docker-compose.yml` and copy the contents to it
 3. Create a `.env` file with the required Environment Variables in the same directory as the `docker-compose.yml` and populate it with the proper variables as instructed above
 4. Run `docker compose up -d && docker compose logs -f`
+
+## License
+
+MIT. See the [LICENSE](./LICENSE) file.
