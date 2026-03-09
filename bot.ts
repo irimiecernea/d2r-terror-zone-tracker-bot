@@ -9,16 +9,39 @@ import {
   TrackedTerrorMessage,
 } from './api/response/tracked-terror-message.js';
 import { Helper } from './helpers/helper.js';
+import {
+  IMMUNITY_EMOJI_MAP,
+  MAX_CONFIRM_REFRESH_DELAY_SECONDS,
+  MIN_CONFIRM_REFRESH_DELAY_SECONDS,
+  TERROR_ZONE_LOADING_PLACEHOLDER,
+} from './constants.js';
 
 const TOKEN = process.env.TOKEN?.trim();
 const CLIENT_ID = process.env.CLIENT_ID?.trim();
 const API_URL = process.env.API_URL?.trim();
 const API_TOKEN = process.env.API_TOKEN?.trim();
+const CONFIRM_REFRESH_DELAY_SECONDS_RAW = process.env.CONFIRM_REFRESH_DELAY_SECONDS?.trim();
 
 if (!TOKEN) throw new Error('Missing TOKEN');
 if (!CLIENT_ID) throw new Error('Missing CLIENT_ID');
 if (!API_URL) throw new Error('Missing API_URL');
 if (!API_TOKEN) throw new Error('Missing API_TOKEN');
+if (!CONFIRM_REFRESH_DELAY_SECONDS_RAW) throw new Error('Missing CONFIRM_REFRESH_DELAY_SECONDS');
+
+const CONFIRM_REFRESH_DELAY_SECONDS = (() => {
+  const parsed = Number(CONFIRM_REFRESH_DELAY_SECONDS_RAW);
+  const isInteger = Number.isInteger(parsed);
+  const isInRange =
+    parsed >= MIN_CONFIRM_REFRESH_DELAY_SECONDS && parsed <= MAX_CONFIRM_REFRESH_DELAY_SECONDS;
+
+  if (!isInteger || !isInRange) {
+    throw new Error(
+      `Invalid CONFIRM_REFRESH_DELAY_SECONDS. Expected an integer between ${MIN_CONFIRM_REFRESH_DELAY_SECONDS} and ${MAX_CONFIRM_REFRESH_DELAY_SECONDS} (seconds).`,
+    );
+  }
+
+  return parsed;
+})();
 
 const commands = [
   {
@@ -35,27 +58,13 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 const apiRequest = new APIRequest(API_URL, API_TOKEN);
 const embeds = new Embeds();
 const TRACKED_MESSAGES_STORE_PATH = join(process.cwd(), 'data', 'terrorized-store.json');
-const NEXT_ZONE_LOADING_PLACEHOLDER = '⏳ Refreshing...';
-const IMMUNITIES_LOADING_PLACEHOLDER = '⏳ Refreshing...';
-const LOOT_TIER_LOADING_PLACEHOLDER = '⏳ Refreshing...';
-const CONFIRM_REFRESH_DELAY_SECONDS = 90;
-const IMMUNITY_EMOJI_MAP: Record<string, string> = {
-  f: ':fire:',
-  c: ':snowflake:',
-  l: ':zap:',
-  p: ':test_tube:',
-  ph: ':crossed_swords:',
-  m: ':sparkles:',
-};
 
 const trackedMessages = new Map<string, TrackedTerrorMessage>();
 let globalBoundaryTimer: NodeJS.Timeout | undefined;
 let globalConfirmTimer: NodeJS.Timeout | undefined;
 let expectedCurrentStartTimeAfterBoundary: number | null = null;
 const terrorZoneHelper = new Helper({
-  nextZoneLoadingPlaceholder: NEXT_ZONE_LOADING_PLACEHOLDER,
-  immunitiesLoadingPlaceholder: IMMUNITIES_LOADING_PLACEHOLDER,
-  lootTierLoadingPlaceholder: LOOT_TIER_LOADING_PLACEHOLDER,
+  loadingPlaceholder: TERROR_ZONE_LOADING_PLACEHOLDER,
   immunityEmojiMap: IMMUNITY_EMOJI_MAP,
 });
 
@@ -242,15 +251,15 @@ function scheduleGlobalTimers(nextStartUnixSeconds: number): void {
 
   globalBoundaryTimer = setTimeout(() => {
     for (const tracked of trackedMessages.values()) {
-      if (tracked.nextTerrorZone.zone !== NEXT_ZONE_LOADING_PLACEHOLDER) {
+      if (tracked.nextTerrorZone.zone !== TERROR_ZONE_LOADING_PLACEHOLDER) {
         tracked.currentTerrorZone = tracked.nextTerrorZone;
       }
 
       tracked.nextTerrorZone = {
-        zone: NEXT_ZONE_LOADING_PLACEHOLDER,
+        zone: TERROR_ZONE_LOADING_PLACEHOLDER,
         startTime: 0,
-        immunities: IMMUNITIES_LOADING_PLACEHOLDER,
-        lootTier: LOOT_TIER_LOADING_PLACEHOLDER,
+        immunities: TERROR_ZONE_LOADING_PLACEHOLDER,
+        lootTier: TERROR_ZONE_LOADING_PLACEHOLDER,
       };
     }
 

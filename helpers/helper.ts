@@ -4,16 +4,12 @@ import { PersistedTrackedTerrorMessage, TrackedTerrorMessage } from '../api/resp
 import { TerrorZoneDisplayPayload } from '../api/response/terror-zone-display.js';
 
 interface HelperConfig {
-  nextZoneLoadingPlaceholder: string;
-  immunitiesLoadingPlaceholder: string;
-  lootTierLoadingPlaceholder: string;
+  loadingPlaceholder: string;
   immunityEmojiMap: Record<string, string>;
 }
 
 export class Helper {
-  private readonly nextZoneLoadingPlaceholder: string;
-  private readonly immunitiesLoadingPlaceholder: string;
-  private readonly lootTierLoadingPlaceholder: string;
+  private readonly loadingPlaceholder: string;
   private readonly immunityEmojiMap: Record<string, string>;
 
   /**
@@ -21,9 +17,7 @@ export class Helper {
    * @param config Placeholder strings and immunity emoji dictionary.
    */
   constructor(config: HelperConfig) {
-    this.nextZoneLoadingPlaceholder = config.nextZoneLoadingPlaceholder;
-    this.immunitiesLoadingPlaceholder = config.immunitiesLoadingPlaceholder;
-    this.lootTierLoadingPlaceholder = config.lootTierLoadingPlaceholder;
+    this.loadingPlaceholder = config.loadingPlaceholder;
     this.immunityEmojiMap = config.immunityEmojiMap;
   }
 
@@ -102,10 +96,10 @@ export class Helper {
       nextTerrorZone: next
         ? this.mapZoneEntry(next)
         : {
-            zone: this.nextZoneLoadingPlaceholder,
+            zone: this.loadingPlaceholder,
             startTime: current.end_time,
-            immunities: this.immunitiesLoadingPlaceholder,
-            lootTier: this.lootTierLoadingPlaceholder,
+            immunities: this.loadingPlaceholder,
+            lootTier: this.loadingPlaceholder,
           },
     };
   }
@@ -153,11 +147,11 @@ export class Helper {
             immunities:
               typeof entry.nextTerrorZone.immunities === 'string'
                 ? entry.nextTerrorZone.immunities
-                : this.immunitiesLoadingPlaceholder,
+                : this.loadingPlaceholder,
             lootTier:
               typeof entry.nextTerrorZone.lootTier === 'string'
                 ? entry.nextTerrorZone.lootTier
-                : this.lootTierLoadingPlaceholder,
+                : this.loadingPlaceholder,
           },
         }),
       );

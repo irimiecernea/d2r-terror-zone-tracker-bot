@@ -8,6 +8,7 @@ services:
       CLIENT_ID: ${CLIENT_ID}
       API_URL: ${API_URL}
       API_TOKEN: ${API_TOKEN}
+      CONFIRM_REFRESH_DELAY_SECONDS: ${CONFIRM_REFRESH_DELAY_SECONDS}
     volumes:
       - data:/app/data
     # Alternative host bind mount (uncomment and remove named volume above):
