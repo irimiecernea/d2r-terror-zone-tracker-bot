@@ -31,7 +31,15 @@ async fetchTerrorZone(): Promise<TerrorApiResponseSuccess | TerrorApiResponseFai
       console.log('API request successful');
       return (await res.json()) as TerrorApiResponseSuccess;
     }
-    
+  } catch (error) {
+    if ((error as DOMException).name === 'AbortError') {
+      return { status: 'error', message: 'API request timed out after 5000ms.' };
+    }
+
+    return {
+      status: 'error',
+      message: `API request failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
   } finally {
     clearTimeout(timeout);
   }
