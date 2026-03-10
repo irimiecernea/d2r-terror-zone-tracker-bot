@@ -1,6 +1,7 @@
 export const TERROR_ZONE_LOADING_PLACEHOLDER = '⏳ Refreshing...';
 export const MIN_CONFIRM_REFRESH_DELAY_SECONDS = 45;
 export const MAX_CONFIRM_REFRESH_DELAY_SECONDS = 120;
+export const REFRESH_RETRY_DELAY_MS = 30_000;
 
 export const IMMUNITY_EMOJI_MAP: Record<string, string> = {
   f: ':fire:',

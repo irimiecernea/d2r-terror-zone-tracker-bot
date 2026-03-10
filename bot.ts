@@ -13,6 +13,7 @@ import {
   IMMUNITY_EMOJI_MAP,
   MAX_CONFIRM_REFRESH_DELAY_SECONDS,
   MIN_CONFIRM_REFRESH_DELAY_SECONDS,
+  REFRESH_RETRY_DELAY_MS,
   TERROR_ZONE_LOADING_PLACEHOLDER,
 } from './constants.js';
 
@@ -58,7 +59,6 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 const apiRequest = new APIRequest(API_URL, API_TOKEN);
 const embeds = new Embeds();
 const TRACKED_MESSAGES_STORE_PATH = join(process.cwd(), 'data', 'terrorized-store.json');
-const REFRESH_RETRY_DELAY_MS = 30_000;
 
 const trackedMessages = new Map<string, TrackedTerrorMessage>();
 let globalBoundaryTimer: NodeJS.Timeout | undefined;
