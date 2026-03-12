@@ -13,6 +13,7 @@ import {
   IMMUNITY_EMOJI_MAP,
   MAX_CONFIRM_REFRESH_DELAY_SECONDS,
   MIN_CONFIRM_REFRESH_DELAY_SECONDS,
+  REFRESH_RETRY_DELAY_MS,
   TERROR_ZONE_LOADING_PLACEHOLDER,
 } from './constants.js';
 
@@ -281,6 +282,22 @@ function scheduleGlobalTimers(nextStartUnixSeconds: number): void {
 }
 
 /**
+ * Schedules a delayed refresh retry and logs the reason.
+ */
+function scheduleRefreshRetry(logLabel: string, reason: string): void {
+  console.warn(`${logLabel}: ${reason}. Retrying in ${REFRESH_RETRY_DELAY_MS / 1000}s.`);
+  globalConfirmTimer = setTimeout(() => {
+    refreshAllFromApi().catch(error => {
+      console.error('Retry shared refresh failed for tracked terrorized messages:', error);
+      scheduleRefreshRetry(
+        'Retry shared refresh failed for tracked terrorized messages',
+        error instanceof Error ? error.message : String(error),
+      );
+    });
+  }, REFRESH_RETRY_DELAY_MS);
+}
+
+/**
  * Refreshes all tracked messages using one shared API call.
  * Handles retries for API failures/empty payloads/stale confirmations,
  * then persists state, edits messages, and reschedules global timers.
@@ -289,57 +306,55 @@ async function refreshAllFromApi(): Promise<void> {
   if (trackedMessages.size === 0) return;
   const trackedCount = trackedMessages.size;
   const avoidedCalls = Math.max(0, trackedCount - 1);
-
-  const apiData = await apiRequest.fetchTerrorZone();
-  if (!terrorZoneHelper.isSuccessResponse(apiData)) {
-    console.log(`[refresh] tracked=${trackedCount}, api_calls=1, avoided=${avoidedCalls}`);
-    console.error(`Failed shared refresh for tracked terrorized messages: ${apiData.message}`);
-    globalConfirmTimer = setTimeout(() => {
-      refreshAllFromApi().catch(error => {
-        console.error('Retry shared refresh failed for tracked terrorized messages:', error);
-      });
-    }, 30_000);
-    return;
-  }
-
-  const mappedData = terrorZoneHelper.mapApiDataToDisplayPayload(apiData);
-  if (!mappedData) {
-    console.log(`[refresh] tracked=${trackedCount}, api_calls=1, avoided=${avoidedCalls}`);
-    console.error('No zone entries returned for shared tracked terrorized refresh.');
-    globalConfirmTimer = setTimeout(() => {
-      refreshAllFromApi().catch(error => {
-        console.error('Retry shared refresh failed for tracked terrorized messages:', error);
-      });
-    }, 30_000);
-    return;
-  }
-
-  const isStaleConfirmation =
-    expectedCurrentStartTimeAfterBoundary !== null &&
-    mappedData.currentTerrorZone.startTime > 0 &&
-    mappedData.currentTerrorZone.startTime < expectedCurrentStartTimeAfterBoundary;
-
-  if (isStaleConfirmation) {
-    globalConfirmTimer = setTimeout(() => {
-      refreshAllFromApi().catch(error => {
-        console.error('Retry shared refresh failed for tracked terrorized messages:', error);
-      });
-    }, 30_000);
-    return;
-  }
-
-  applyMappedDataToAllTrackedMessages(mappedData);
-  console.log(`[refresh] tracked=${trackedCount}, api_calls=1, avoided=${avoidedCalls}`);
-  expectedCurrentStartTimeAfterBoundary = null;
-
   try {
-    await saveTrackedMessagesToStore();
-  } catch (error) {
-    console.error('Failed to persist tracked terrorized messages after refresh:', error);
-  }
+    const apiData = await apiRequest.fetchTerrorZone();
+    if (!terrorZoneHelper.isSuccessResponse(apiData)) {
+      console.log(`[refresh] tracked=${trackedCount}, api_calls=1, avoided=${avoidedCalls}`);
+      scheduleRefreshRetry('Failed shared refresh for tracked terrorized messages', apiData.message);
+      return;
+    }
 
-  await editAllTrackedMessages();
-  scheduleGlobalTimers(mappedData.nextTerrorZone.startTime);
+    const mappedData = terrorZoneHelper.mapApiDataToDisplayPayload(apiData);
+    if (!mappedData) {
+      console.log(`[refresh] tracked=${trackedCount}, api_calls=1, avoided=${avoidedCalls}`);
+      scheduleRefreshRetry(
+        'No zone entries returned for shared tracked terrorized refresh',
+        'empty API payload',
+      );
+      return;
+    }
+
+    const isStaleConfirmation =
+      expectedCurrentStartTimeAfterBoundary !== null &&
+      mappedData.currentTerrorZone.startTime > 0 &&
+      mappedData.currentTerrorZone.startTime < expectedCurrentStartTimeAfterBoundary;
+
+    if (isStaleConfirmation) {
+      scheduleRefreshRetry(
+        'Shared refresh returned stale current terror zone start time',
+        `expected >= ${expectedCurrentStartTimeAfterBoundary}, got ${mappedData.currentTerrorZone.startTime}`,
+      );
+      return;
+    }
+
+    applyMappedDataToAllTrackedMessages(mappedData);
+    console.log(`[refresh] tracked=${trackedCount}, api_calls=1, avoided=${avoidedCalls}`);
+    expectedCurrentStartTimeAfterBoundary = null;
+
+    try {
+      await saveTrackedMessagesToStore();
+    } catch (error) {
+      console.error('Failed to persist tracked terrorized messages after refresh:', error);
+    }
+
+    await editAllTrackedMessages();
+    scheduleGlobalTimers(mappedData.nextTerrorZone.startTime);
+  } catch (error) {
+    scheduleRefreshRetry(
+      'Unexpected shared refresh exception for tracked terrorized messages',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 }
 
 try {
@@ -415,9 +430,9 @@ client.on(Events.InteractionCreate, async interaction => {
       embeds: [
         embeds.buildTerrorZoneEmbed(
           mappedData ??
-            (terrorZoneHelper.isSuccessResponse(terrorZoneData)
-              ? { status: 'error', message: 'API returned no terror zone entries.' }
-              : terrorZoneData),
+          (terrorZoneHelper.isSuccessResponse(terrorZoneData)
+            ? { status: 'error', message: 'API returned no terror zone entries.' }
+            : terrorZoneData),
         ),
       ],
     });
